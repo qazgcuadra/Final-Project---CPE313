@@ -54,12 +54,12 @@ if uploaded_file is not None:
         stframe = st.empty()
         st.info("Processing video... please wait")
 
-        # Temporary video writer for output
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out_path = os.path.join(tempfile.gettempdir(), "output.mp4")
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        # Force output FPS to 30
+        fps = 30
         width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        out_path = os.path.join(tempfile.gettempdir(), "output.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
         with st.spinner("Detecting PPE in video..."):
@@ -72,7 +72,6 @@ if uploaded_file is not None:
                 annotated_frame = results[0].plot()
                 out.write(annotated_frame)
 
-                # Convert and display in Streamlit
                 annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                 stframe.image(annotated_rgb, channels="RGB", use_column_width=True)
 
