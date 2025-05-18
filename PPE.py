@@ -1,47 +1,83 @@
 import streamlit as st
 from PIL import Image
 import torch
-from ultralytics import RTDETR  # Replace with YOLO if you're using that
+from ultralytics import RTDETR
 import cv2
 import numpy as np
+import tempfile
+import os
 
 # Load your trained model (only once, cached)
 @st.cache_resource
 def load_model():
-    model = RTDETR('bestmodel-rtdetrl.pt') 
+    model = RTDETR('bestmodel-rtdetrl.pt')  # Replace path if needed
     return model
 
 model = load_model()
 
 # App title
 st.title("🦺 PPE Detection App")
-st.markdown("Upload an image to detect **Helmet**, **Vest**, **Gloves**, and **Boots** using your custom-trained RT-DETR model.")
+st.markdown("Upload an image or video to detect **Helmet**, **Vest**, **Gloves**, and **Boots** using your custom-trained RT-DETR model.")
 
-# Image uploader
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+# File uploader
+uploaded_file = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "mov", "avi"])
 
 if uploaded_file is not None:
-    # Open image
-    image = Image.open(uploaded_file).convert('RGB')
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+    file_type = uploaded_file.type
 
-    # Convert to numpy array and BGR (OpenCV format)
-    img_np = np.array(image)
-    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+    if file_type.startswith("image"):
+        # Handle image
+        image = Image.open(uploaded_file).convert('RGB')
+        st.image(image, caption='Uploaded Image', use_column_width=True)
 
-    # Run inference with confidence threshold set to 0.5
-    with st.spinner("Detecting PPE..."):
-        results = model(img_bgr, conf=0.5)  # <-- Set confidence here
+        # Convert to OpenCV BGR format
+        img_np = np.array(image)
+        img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
 
-    # Plot detections (in BGR)
-    annotated_frame = results[0].plot()
+        # Run detection
+        with st.spinner("Detecting PPE in image..."):
+            results = model(img_bgr, conf=0.5)
 
-    # Convert BGR to RGB for correct color rendering in Streamlit
-    annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+        # Annotate and show
+        annotated_frame = results[0].plot()
+        annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+        st.image(annotated_rgb, caption="Detection Results", use_column_width=True)
 
-    # Show annotated result with correct colors
-    st.image(annotated_rgb, caption="Detection Results", use_column_width=True)
+        with st.expander("Detection JSON Output"):
+            st.json(results[0].tojson())
 
-    # Optional: Show raw detection JSON
-    with st.expander("Detection JSON Output"):
-        st.json(results[0].tojson())
+    elif file_type.startswith("video"):
+        tfile = tempfile.NamedTemporaryFile(delete=False)
+        tfile.write(uploaded_file.read())
+        cap = cv2.VideoCapture(tfile.name)
+
+        stframe = st.empty()
+        st.info("Processing video... please wait")
+
+        # Temporary video writer for output
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out_path = os.path.join(tempfile.gettempdir(), "output.mp4")
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+
+        with st.spinner("Detecting PPE in video..."):
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                results = model(frame, conf=0.5)
+                annotated_frame = results[0].plot()
+                out.write(annotated_frame)
+
+                # Convert and display in Streamlit
+                annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                stframe.image(annotated_rgb, channels="RGB", use_column_width=True)
+
+            cap.release()
+            out.release()
+
+        st.success("Video processing complete.")
+        st.video(out_path)
