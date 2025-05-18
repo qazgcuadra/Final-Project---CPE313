@@ -8,7 +8,7 @@ import numpy as np
 # Load your trained model (only once, cached)
 @st.cache_resource
 def load_model():
-    model = RTDETR('/content/runs/detect/train13/weights/best.pt')  # Replace path if needed
+    model = RTDETR('bestmodel-rtdetrl.pt')  # Replace path if needed
     return model
 
 model = load_model()
