@@ -8,7 +8,7 @@ import numpy as np
 # Load your trained model (only once, cached)
 @st.cache_resource
 def load_model():
-    model = RTDETR('bestmodel-rtdetrl.pt')  # Replace path if needed
+    model = RTDETR('bestmodel-rtdetrl.pt') 
     return model
 
 model = load_model()
@@ -33,11 +33,14 @@ if uploaded_file is not None:
     with st.spinner("Detecting PPE..."):
         results = model(img_bgr, conf=0.5)  # <-- Set confidence here
 
-    # Plot detections
+    # Plot detections (in BGR)
     annotated_frame = results[0].plot()
 
-    # Show annotated result
-    st.image(annotated_frame, caption="Detection Results", use_column_width=True)
+    # Convert BGR to RGB for correct color rendering in Streamlit
+    annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+
+    # Show annotated result with correct colors
+    st.image(annotated_rgb, caption="Detection Results", use_column_width=True)
 
     # Optional: Show raw detection JSON
     with st.expander("Detection JSON Output"):
