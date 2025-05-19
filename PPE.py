@@ -17,7 +17,7 @@ model = load_model()
 
 # App title
 st.title("🦺 PPE Detection App")
-st.markdown("Upload an image or video to detect **Helmet**, **Vest**, **Gloves**, and **Boots** using your custom-trained RT-DETR model.")
+st.markdown("Upload an image or video to detect common Personal Protective Equipment.")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload an image or video", type=["jpg", "jpeg", "png", "mp4", "mov", "avi"])
@@ -53,14 +53,6 @@ if uploaded_file is not None:
 
         st.info("Processing first 10 frames of video...")
 
-        # Output video setup (optional)
-        fps = 30
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        out_path = os.path.join(tempfile.gettempdir(), "output_partial.mp4")
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-
         # Store annotated frames and results
         frame_count = 0
         max_frames = 10
@@ -75,8 +67,8 @@ if uploaded_file is not None:
 
                 results = model(frame, conf=0.5)
                 annotated_frame = results[0].plot()
-                out.write(annotated_frame)
 
+                # Convert BGR to RGB for Streamlit
                 annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
                 annotated_frames.append(annotated_rgb)
                 detection_jsons.append(results[0].tojson())
@@ -84,10 +76,8 @@ if uploaded_file is not None:
                 frame_count += 1
 
             cap.release()
-            out.release()
 
         st.success("Processed first 10 frames.")
-        st.video(out_path)
 
         # Display each frame individually
         st.subheader("🔍 Frame-by-Frame Analysis (First 10 Frames)")
