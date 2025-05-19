@@ -16,8 +16,6 @@ model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 ppe_choices = ["all", "helmet", "vest", "gloves", "boots", "person"]
 selected_ppe = st.selectbox("Select PPE class to filter", ppe_choices, index=0)
 
-input_type = st.radio("Select input type:", ["Video", "Image"])
-
 # Extract frames function for video
 def extract_frames(video_path, num_frames=10, size=(640, 640)):
     frames = []
@@ -62,9 +60,16 @@ def filter_and_draw(frame, result, selected_ppe):
         detected_frame = result.plot()
     return detected_frame
 
-if input_type == "Video":
-    uploaded_file = st.file_uploader("Upload a video for PPE detection", type=["mp4", "avi", "mov"])
-    if uploaded_file is not None:
+uploaded_file = st.file_uploader(
+    "Upload an image or video for PPE detection",
+    type=["mp4", "avi", "mov", "jpg", "jpeg", "png"]
+)
+
+if uploaded_file is not None:
+    file_ext = uploaded_file.name.split('.')[-1].lower()
+
+    if file_ext in ["mp4", "avi", "mov"]:
+        # Handle video
         with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
             tmp_file.write(uploaded_file.read())
             video_path = tmp_file.name
@@ -109,9 +114,8 @@ if input_type == "Video":
                             else:
                                 st.info(f"No {selected_ppe} detected in this frame.")
 
-elif input_type == "Image":
-    uploaded_file = st.file_uploader("Upload an image for PPE detection", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
+    elif file_ext in ["jpg", "jpeg", "png"]:
+        # Handle image
         image = Image.open(uploaded_file).convert("RGB")
         frame = np.array(image)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -143,3 +147,6 @@ elif input_type == "Image":
                     st.info(f"No {selected_ppe} detected in this image.")
             else:
                 st.info(f"No {selected_ppe} detected in this image.")
+
+    else:
+        st.error("Unsupported file format. Please upload an image or video file.")
