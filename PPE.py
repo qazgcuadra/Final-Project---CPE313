@@ -8,7 +8,7 @@ import os
 import torch
 
 st.set_page_config(layout="wide")
-st.title("PPE Detection from Image or Video")
+st.title("👷🦺 PPE Detection Application")
 
 model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 
