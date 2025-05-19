@@ -13,12 +13,12 @@ st.title("PPE Detection from Image or Video")
 model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 
 # Fixed PPE classes to filter by
-ppe_choices = ["all", "helmet", "vest", "gloves", "boots"]
+ppe_choices = ["all", "helmet", "vest", "gloves", "boots", "person"]
 selected_ppe = st.selectbox("Select PPE class to filter", ppe_choices, index=0)
 
-# Slider (or radio) to select input type
-input_type = st.radio("Choose input type:", ["Image", "Video"])
+input_type = st.radio("Select input type:", ["Video", "Image"])
 
+# Extract frames function for video
 def extract_frames(video_path, num_frames=10, size=(640, 640)):
     frames = []
     cap = cv2.VideoCapture(video_path)
@@ -87,7 +87,7 @@ if input_type == "Video":
                         frame_rgb = cv2.cvtColor(detected_frame, cv2.COLOR_BGR2RGB)
                         st.image(frame_rgb, caption=f"Frame {i + j + 1}", use_container_width=True)
 
-                        # Show detected classes
+                        # Show detected classes in this filtered view
                         if selected_ppe == "all":
                             class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
                             if len(class_ids) > 0:
@@ -98,11 +98,14 @@ if input_type == "Video":
                             else:
                                 st.info("No PPE detected in this frame.")
                         else:
-                            detected_class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
-                            names = result.names
-                            filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
-                            if filtered_indices:
-                                st.markdown(f"**Detected Classes:** - {selected_ppe}")
+                            if len(result.boxes) > 0:
+                                detected_class_ids = result.boxes.cls.cpu().numpy().astype(int)
+                                names = result.names
+                                filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
+                                if filtered_indices:
+                                    st.markdown(f"**Detected Classes:** - {selected_ppe}")
+                                else:
+                                    st.info(f"No {selected_ppe} detected in this frame.")
                             else:
                                 st.info(f"No {selected_ppe} detected in this frame.")
 
@@ -112,14 +115,14 @@ elif input_type == "Image":
         image = Image.open(uploaded_file).convert("RGB")
         frame = np.array(image)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        
+
         results = model(frame, conf=0.5)
         result = results[0]
         detected_frame = filter_and_draw(frame, result, selected_ppe)
         frame_rgb = cv2.cvtColor(detected_frame, cv2.COLOR_BGR2RGB)
         st.image(frame_rgb, caption="Detected PPE", use_container_width=True)
 
-        # Show detected classes
+        # Show detected classes in this filtered view
         if selected_ppe == "all":
             class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
             if len(class_ids) > 0:
@@ -130,10 +133,13 @@ elif input_type == "Image":
             else:
                 st.info("No PPE detected in this image.")
         else:
-            detected_class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
-            names = result.names
-            filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
-            if filtered_indices:
-                st.markdown(f"**Detected Classes:** - {selected_ppe}")
+            if len(result.boxes) > 0:
+                detected_class_ids = result.boxes.cls.cpu().numpy().astype(int)
+                names = result.names
+                filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
+                if filtered_indices:
+                    st.markdown(f"**Detected Classes:** - {selected_ppe}")
+                else:
+                    st.info(f"No {selected_ppe} detected in this image.")
             else:
                 st.info(f"No {selected_ppe} detected in this image.")
