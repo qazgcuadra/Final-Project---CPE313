@@ -17,7 +17,7 @@ ppe_choices = ["all", "helmet", "vest", "gloves", "boots", "person"]
 selected_ppe = st.selectbox("Select PPE class to filter", ppe_choices, index=0)
 
 # Extract frames function for video
-def extract_frames(video_path, num_frames=10, size=(640, 640)):
+def extract_frames(video_path, num_frames=8, size=(640, 640)):
     frames = []
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
