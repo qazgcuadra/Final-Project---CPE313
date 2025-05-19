@@ -8,7 +8,7 @@ import os
 import torch
 
 st.set_page_config(layout="wide")
-st.title("PPE Detection from Video")
+st.title("PPE Detection from Image or Video")
 
 model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 
@@ -16,7 +16,9 @@ model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 ppe_choices = ["all", "helmet", "vest", "gloves", "boots"]
 selected_ppe = st.selectbox("Select PPE class to filter", ppe_choices, index=0)
 
-# Extract frames function (unchanged)
+# Slider (or radio) to select input type
+input_type = st.radio("Choose input type:", ["Image", "Video"])
+
 def extract_frames(video_path, num_frames=10, size=(640, 640)):
     frames = []
     cap = cv2.VideoCapture(video_path)
@@ -39,69 +41,99 @@ def extract_frames(video_path, num_frames=10, size=(640, 640)):
     cap.release()
     return frames
 
-uploaded_file = st.file_uploader("Upload a video for PPE detection", type=["mp4", "avi", "mov"])
-if uploaded_file is not None:
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        video_path = tmp_file.name
+def filter_and_draw(frame, result, selected_ppe):
+    if selected_ppe != "all":
+        detected_class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
+        names = result.names
+        filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
+        if filtered_indices:
+            boxes = result.boxes[filtered_indices]
+            detected_frame = frame.copy()
+            for box in boxes:
+                xyxy = box.xyxy.cpu().numpy().astype(int)[0]
+                cls_id = int(box.cls.cpu().numpy())
+                conf = box.conf.cpu().numpy()
+                label = f"{names[cls_id]} {conf[0]:.2f}"
+                cv2.rectangle(detected_frame, (xyxy[0], xyxy[1]), (xyxy[2], xyxy[3]), (0,255,0), 2)
+                cv2.putText(detected_frame, label, (xyxy[0], xyxy[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+        else:
+            detected_frame = frame.copy()
+    else:
+        detected_frame = result.plot()
+    return detected_frame
 
-    st.video(video_path)
-    st.subheader("Detected Frames with PPE Items")
+if input_type == "Video":
+    uploaded_file = st.file_uploader("Upload a video for PPE detection", type=["mp4", "avi", "mov"])
+    if uploaded_file is not None:
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            tmp_file.write(uploaded_file.read())
+            video_path = tmp_file.name
 
-    num_frames = 10
-    frames = extract_frames(video_path, num_frames=num_frames, size=(640, 640))
+        st.video(video_path)
+        st.subheader("Detected Frames with PPE Items")
 
-    for i in range(0, len(frames), 4):
-        cols = st.columns(4)
-        for j in range(4):
-            if i + j < len(frames):
-                with cols[j]:
-                    frame = frames[i + j]
-                    results = model(frame, conf=0.5)
-                    result = results[0]
+        num_frames = 10
+        frames = extract_frames(video_path, num_frames=num_frames, size=(640, 640))
 
-                    # Filter detected boxes by selected PPE class
-                    if selected_ppe != "all":
-                        # Get class names and detected class IDs
-                        detected_class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
-                        names = result.names
-                        
-                        # Filter indices where class matches selected PPE
-                        filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
-                        
-                        # Create a filtered result object manually by keeping only filtered boxes
-                        if filtered_indices:
-                            boxes = result.boxes[filtered_indices]
-                            # Plot only filtered boxes
-                            detected_frame = frame.copy()
-                            for box in boxes:
-                                xyxy = box.xyxy.cpu().numpy().astype(int)[0]
-                                cls_id = int(box.cls.cpu().numpy())
-                                conf = box.conf.cpu().numpy()
-                                label = f"{names[cls_id]} {conf[0]:.2f}"
-                                cv2.rectangle(detected_frame, (xyxy[0], xyxy[1]), (xyxy[2], xyxy[3]), (0,255,0), 2)
-                                cv2.putText(detected_frame, label, (xyxy[0], xyxy[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+        for i in range(0, len(frames), 4):
+            cols = st.columns(4)
+            for j in range(4):
+                if i + j < len(frames):
+                    with cols[j]:
+                        frame = frames[i + j]
+                        results = model(frame, conf=0.5)
+                        result = results[0]
+                        detected_frame = filter_and_draw(frame, result, selected_ppe)
+                        frame_rgb = cv2.cvtColor(detected_frame, cv2.COLOR_BGR2RGB)
+                        st.image(frame_rgb, caption=f"Frame {i + j + 1}", use_container_width=True)
+
+                        # Show detected classes
+                        if selected_ppe == "all":
+                            class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
+                            if len(class_ids) > 0:
+                                detected_classes = result.names
+                                st.markdown("**Detected Classes:**")
+                                for cid in class_ids:
+                                    st.markdown(f"- {detected_classes[cid]}")
+                            else:
+                                st.info("No PPE detected in this frame.")
                         else:
-                            detected_frame = frame.copy()
-                    else:
-                        detected_frame = result.plot()
+                            detected_class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
+                            names = result.names
+                            filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
+                            if filtered_indices:
+                                st.markdown(f"**Detected Classes:** - {selected_ppe}")
+                            else:
+                                st.info(f"No {selected_ppe} detected in this frame.")
 
-                    frame_rgb = cv2.cvtColor(detected_frame, cv2.COLOR_BGR2RGB)
-                    st.image(frame_rgb, caption=f"Frame {i + j + 1}", use_container_width=True)
+elif input_type == "Image":
+    uploaded_file = st.file_uploader("Upload an image for PPE detection", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file).convert("RGB")
+        frame = np.array(image)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
+        results = model(frame, conf=0.5)
+        result = results[0]
+        detected_frame = filter_and_draw(frame, result, selected_ppe)
+        frame_rgb = cv2.cvtColor(detected_frame, cv2.COLOR_BGR2RGB)
+        st.image(frame_rgb, caption="Detected PPE", use_container_width=True)
 
-                    # Show detected classes in this filtered view
-                    if selected_ppe == "all":
-                        class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
-                        if len(class_ids) > 0:
-                            detected_classes = result.names
-                            st.markdown("**Detected Classes:**")
-                            for cid in class_ids:
-                                st.markdown(f"- {detected_classes[cid]}")
-                        else:
-                            st.info("No PPE detected in this frame.")
-                    else:
-                        # Show only selected PPE class if detected
-                        if filtered_indices:
-                            st.markdown(f"**Detected Classes:** - {selected_ppe}")
-                        else:
-                            st.info(f"No {selected_ppe} detected in this frame.")
+        # Show detected classes
+        if selected_ppe == "all":
+            class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
+            if len(class_ids) > 0:
+                detected_classes = result.names
+                st.markdown("**Detected Classes:**")
+                for cid in class_ids:
+                    st.markdown(f"- {detected_classes[cid]}")
+            else:
+                st.info("No PPE detected in this image.")
+        else:
+            detected_class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
+            names = result.names
+            filtered_indices = [idx for idx, cid in enumerate(detected_class_ids) if names[cid].lower() == selected_ppe.lower()]
+            if filtered_indices:
+                st.markdown(f"**Detected Classes:** - {selected_ppe}")
+            else:
+                st.info(f"No {selected_ppe} detected in this image.")
