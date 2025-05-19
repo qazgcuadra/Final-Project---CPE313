@@ -51,19 +51,24 @@ if uploaded_file is not None:
         tfile.write(uploaded_file.read())
         cap = cv2.VideoCapture(tfile.name)
 
-        stframe = st.empty()
-        st.info("Processing video... please wait")
+        st.info("Processing first 10 frames of video...")
 
-        # Force output FPS to 30
+        # Output video setup (optional)
         fps = 30
-        width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        out_path = os.path.join(tempfile.gettempdir(), "output.mp4")
+        out_path = os.path.join(tempfile.gettempdir(), "output_partial.mp4")
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
+        # Store annotated frames and results
+        frame_count = 0
+        max_frames = 10
+        annotated_frames = []
+        detection_jsons = []
+
         with st.spinner("Detecting PPE in video..."):
-            while cap.isOpened():
+            while cap.isOpened() and frame_count < max_frames:
                 ret, frame = cap.read()
                 if not ret:
                     break
@@ -73,10 +78,21 @@ if uploaded_file is not None:
                 out.write(annotated_frame)
 
                 annotated_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-                stframe.image(annotated_rgb, channels="RGB", use_column_width=True)
+                annotated_frames.append(annotated_rgb)
+                detection_jsons.append(results[0].tojson())
+
+                frame_count += 1
 
             cap.release()
             out.release()
 
-        st.success("Video processing complete.")
+        st.success("Processed first 10 frames.")
         st.video(out_path)
+
+        # Display each frame individually
+        st.subheader("🔍 Frame-by-Frame Analysis (First 10 Frames)")
+        for i, (img, det_json) in enumerate(zip(annotated_frames, detection_jsons)):
+            st.markdown(f"### Frame {i+1}")
+            st.image(img, caption=f"Annotated Frame {i+1}", use_column_width=True)
+            with st.expander(f"Detection JSON Output for Frame {i+1}"):
+                st.json(det_json)
