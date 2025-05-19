@@ -12,22 +12,25 @@ st.title("PPE Detection from Video")
 
 model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 
-# Function to extract fixed number of resized frames from video
+# ✅ Extract exactly `num_frames` evenly spaced frames
 def extract_frames(video_path, num_frames=10, size=(640, 640)):
     frames = []
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    interval = max(total_frames // num_frames, 1)
-    
-    for i in range(0, total_frames, interval):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+
+    if total_frames < num_frames:
+        st.warning("Video has fewer frames than the requested number. Reducing to available frames.")
+        frame_indices = list(range(total_frames))
+    else:
+        frame_indices = np.linspace(0, total_frames - 1, num=num_frames, dtype=int)
+
+    for idx in frame_indices:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         ret, frame = cap.read()
         if not ret:
-            break
+            continue
         frame = cv2.resize(frame, size)
         frames.append(frame)
-        if len(frames) >= num_frames:
-            break
 
     cap.release()
     return frames
@@ -41,7 +44,7 @@ if uploaded_file is not None:
     st.video(video_path)
     st.subheader("Detected Frames with PPE Items")
 
-    # Process frames and run inference
+    # Process exactly 10 frames
     num_frames = 10
     frames = extract_frames(video_path, num_frames=num_frames, size=(640, 640))
 
@@ -58,7 +61,7 @@ if uploaded_file is not None:
                     st.image(frame_rgb, caption=f"Frame {i + j + 1}", use_container_width=True)
 
                     class_ids = result.boxes.cls.cpu().numpy().astype(int) if result.boxes.cls is not None else []
-                    if class_ids:
+                    if len(class_ids) > 0:
                         detected_classes = result.names
                         st.markdown("**Detected Classes:**")
                         for cid in class_ids:
