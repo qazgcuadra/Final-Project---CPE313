@@ -75,7 +75,7 @@ if uploaded_file is not None:
             video_path = tmp_file.name
 
         st.video(video_path)
-        st.subheader("Detected Frames with PPE Items")
+        st.subheader("Extracted Frames")
 
         num_frames = 8
         frames = extract_frames(video_path, num_frames=num_frames, size=(640, 640))
