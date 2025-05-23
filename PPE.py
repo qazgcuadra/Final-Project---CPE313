@@ -60,6 +60,18 @@ def filter_and_draw(frame, result, selected_ppe):
         detected_frame = result.plot()
     return detected_frame
 
+# IoU helper function
+def iou(box1, box2):
+    x1, y1, x2, y2 = box1
+    a1, b1, a2, b2 = box2
+    xi1, yi1 = max(x1, a1), max(y1, b1)
+    xi2, yi2 = min(x2, a2), min(y2, b2)
+    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+    box1_area = (x2 - x1) * (y2 - y1)
+    box2_area = (a2 - a1) * (b2 - b1)
+    union_area = box1_area + box2_area - inter_area
+    return inter_area / union_area if union_area > 0 else 0
+
 uploaded_file = st.file_uploader(
     "Upload an image or video for PPE detection",
     type=["mp4", "avi", "mov", "jpg", "jpeg", "png"]
@@ -79,6 +91,39 @@ if uploaded_file is not None:
 
         num_frames = 10
         frames = extract_frames(video_path, num_frames=num_frames, size=(640, 640))
+
+        # Safety check on first frame
+        first_frame = frames[0]
+        results = model(first_frame, conf=0.5)
+        result = results[0]
+        boxes = result.boxes
+        class_ids = boxes.cls.cpu().numpy().astype(int) if boxes.cls is not None else []
+        names = result.names
+        xyxy = boxes.xyxy.cpu().numpy().astype(int)
+
+        detected_objects = []
+        for i, cls_id in enumerate(class_ids):
+            label = names[cls_id].lower()
+            coords = xyxy[i]
+            detected_objects.append({'label': label, 'coords': coords})
+
+        persons = [obj for obj in detected_objects if obj['label'] == 'person']
+        helmets = [obj for obj in detected_objects if obj['label'] == 'helmet']
+        vests = [obj for obj in detected_objects if obj['label'] == 'vest']
+
+        safe = True
+        for person in persons:
+            has_helmet = any(iou(person['coords'], helmet['coords']) > 0.3 for helmet in helmets)
+            has_vest = any(iou(person['coords'], vest['coords']) > 0.3 for vest in vests)
+            if not (has_helmet and has_vest):
+                safe = False
+                break
+
+        # Display safety status
+        if safe and persons:
+            st.success("✅ Safe: All detected persons in the first frame are wearing both helmet and vest.")
+        else:
+            st.error("❌ Unsafe: One or more detected persons in the first frame are missing helmet or vest.")
 
         for i in range(0, len(frames), 4):
             cols = st.columns(4)
