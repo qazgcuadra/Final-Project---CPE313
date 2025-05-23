@@ -1,12 +1,12 @@
 import streamlit as st
 import cv2
 import tempfile
-from ultralytics import YOLO
+from ultralytics import RTDETR
 import numpy as np
 from PIL import Image
 
 # Load YOLOv8 model
-model = YOLO("best.pt")  # Replace with your trained model path
+model = RTDETR("bestmodel-rtdetrl.pt")  # Replace with your trained model path
 
 # Required PPE items
 required_ppe_classes = ['helmet', 'vest']  # Add 'gloves', 'boots' as needed
