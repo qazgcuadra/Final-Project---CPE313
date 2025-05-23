@@ -13,7 +13,7 @@ st.title("👷🦺 PPE Detection Application")
 model = RTDETR("bestmodel-rtdetrl.pt")  # Update with your trained model path
 
 # Fixed PPE classes to filter by
-ppe_choices = ["all", "helmet", "vest", "gloves", "boots", "person"]
+ppe_choices = ["all", "helmet", "vest"]
 selected_ppe = st.selectbox("Select PPE class to filter", ppe_choices, index=0)
 
 # Extract frames function for video
