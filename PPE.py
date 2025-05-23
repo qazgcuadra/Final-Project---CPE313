@@ -5,26 +5,26 @@ from ultralytics import RTDETR
 import numpy as np
 from PIL import Image
 
-# Load YOLOv8 model
-model = RTDETR("bestmodel-rtdetrl.pt")  # Replace with your trained model path
+# Load your trained model
+model = RTDETR("bestmodel-rtdetrl.pt")  # Replace with your actual model path
 
-# Required PPE items
-required_ppe_classes = ['helmet', 'vest']  # Add 'gloves', 'boots' as needed
+# Required PPE classes to check for safety
+required_ppe_classes = ['helmet', 'vest']  # Extend with 'gloves', 'boots' if needed
 class_names = model.model.names
 
 # App title
 st.markdown("## 👷🦺 PPE Detection Application")
 
-# PPE filter dropdown (optional for future use)
+# PPE filter dropdown (optional UI)
 selected_class = st.selectbox("Select PPE class to filter", ["all"] + required_ppe_classes)
 
-# File upload
+# File uploader
 uploaded_file = st.file_uploader(
     "Upload an image or video for PPE detection",
     type=["jpg", "jpeg", "png", "mp4", "avi", "mov", "mpeg4"]
 )
 
-# Function to check missing PPE
+# Function to check for missing PPE items
 def check_missing_ppe(results):
     boxes = results[0].boxes.data.cpu().numpy()
     detected_classes = set()
@@ -37,7 +37,7 @@ def check_missing_ppe(results):
     missing_items = [item for item in required_ppe_classes if item not in detected_classes]
     return missing_items
 
-# Image processing
+# Process uploaded image
 def process_image(image):
     image_array = np.array(image)
     results = model(image_array)
@@ -51,27 +51,26 @@ def process_image(image):
     else:
         st.error(f"❌ Scene is UNSAFE: Missing PPE - {', '.join(missing)}")
 
-# Video processing
+# Process uploaded video
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
-    stframe = st.empty()
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+    ret, frame = cap.read()
+    if not ret:
+        st.error("❌ Could not read the video file.")
+        return
 
-        results = model(frame)
-        annotated_frame = results[0].plot()
-        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+    results = model(frame)
+    annotated_frame = results[0].plot()
+    annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
 
-        stframe.image(annotated_frame, channels="RGB", use_column_width=True)
+    st.image(annotated_frame, channels="RGB", use_column_width=True, caption="First Frame Detection")
 
-        missing = check_missing_ppe(results)
-        if not missing:
-            stframe.success("✅ SAFE: All PPE present.")
-        else:
-            stframe.error(f"❌ UNSAFE: Missing PPE - {', '.join(missing)}")
+    missing = check_missing_ppe(results)
+    if not missing:
+        st.success("✅ SAFE: All required PPE detected in the first frame.")
+    else:
+        st.error(f"❌ UNSAFE: Missing PPE - {', '.join(missing)}")
 
     cap.release()
 
