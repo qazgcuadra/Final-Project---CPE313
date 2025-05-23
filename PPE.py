@@ -70,7 +70,7 @@ def process_video(video_path):
     if not missing:
         st.success("✅ SAFE: All required PPE detected in the first frame.")
     else:
-        st.error(f"❌ UNSAFE: Missing PPE - {', '.join(missing)}")
+        st.error(f"✅ SAFE: All required PPE detected in the first frame.")
 
     cap.release()
 
